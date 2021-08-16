@@ -1,11 +1,10 @@
 import socket
 from time import sleep
-from tkinter import Tk
+
+import pyperclip
 
 PORT = 5005
 KEY = "this is a secret key!"
-r = Tk()
-r.withdraw()
 previous_clipboard = ""
 
 
@@ -31,16 +30,10 @@ def clearify(string, key=None):
     return encoded_string
 
 
-def set_clipboard(to_str: str):
-    r.clipboard_clear()
-    r.clipboard_append(to_str)
-    r.update()
-
-
 def blocking_get_clipboard_if_changed():
     global previous_clipboard
     while True:
-        tmp = r.clipboard_get()
+        tmp = pyperclip.paste()
         if tmp != previous_clipboard:
             previous_clipboard = tmp
             return previous_clipboard
@@ -55,15 +48,15 @@ def paste():
         interfaces = socket.getaddrinfo(
             host=socket.gethostname(), port=None, family=socket.AF_INET
         )
-        allips = {ip[-1][0] for ip in interfaces}
-        for ip in allips:
+        msg = obfuscate(msg).encode()
+        for ip in {ip[-1][0] for ip in interfaces}:
             sock = socket.socket(
                 socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP
             )  # UDP
             sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
             sock.bind((ip, 0))
-            msg = obfuscate(msg)
-            sock.sendto(msg.encode(), ("255.255.255.255", PORT))
+
+            sock.sendto(msg, ("255.255.255.255", PORT))
             sock.close()
 
 
@@ -75,15 +68,13 @@ def copy():
     sock.bind(("0.0.0.0", PORT))
     while True:
         data = sock.recv(1024).decode()
-        set_clipboard(clearify(data))
+        pyperclip.copy(clearify(data))
 
 
 if __name__ == "__main__":
     import threading
 
     server_thread = threading.Thread(target=paste)
-    client_thread = threading.Thread(target=copy)
     server_thread.start()
-    client_thread.start()
+    copy()
 
-    r.mainloop()
