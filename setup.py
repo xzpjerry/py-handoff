@@ -53,4 +53,5 @@ setup(
     ],
     zip_safe=False,
     entry_points={"console_scripts": ["py-handoff=py_handoff.main:entrypoint"]},
+    long_description_content_type='text/markdown',
 )
