@@ -1,5 +1,6 @@
 import gzip
 import json
+import os
 import socket
 import threading
 import uuid
@@ -9,8 +10,8 @@ import netifaces as ni
 import pyperclip
 from lru import LRU
 
-PORT = 5005
-KEY = "this is a secret key!"
+PORT = int(os.environ.get("PY_HANDOFF_PORT", 5005))
+KEY = os.environ.get("PY_HANDOFF_KEY", "D0AA67DD-C285-45A2-B7A7-F5277F613E3C")
 
 self_id = uuid.uuid4().hex
 previous_clipboard = ""
