@@ -26,7 +26,12 @@ def obfuscate(byt):
 
 
 def encode_msg(msg):
-    msg = json.dumps({"msg": msg, "from": self_id,})
+    msg = json.dumps(
+        {
+            "msg": msg,
+            "from": self_id,
+        }
+    )
     msg = msg.encode()
     msg = gzip.compress(msg, compresslevel=9)
     msg = obfuscate(msg)
@@ -55,8 +60,7 @@ def waitForNewPaste():
 
 
 def server():
-    """Broadcasting clipboard changes to LAN
-    """
+    """Broadcasting clipboard changes to LAN"""
     while True:
         msg = waitForNewPaste()
         if msg in incoming_clip:
@@ -85,8 +89,7 @@ def server():
 
 
 def client():
-    """Subscribing clipboard changes from remote, and updating to local
-    """
+    """Subscribing clipboard changes from remote, and updating to local"""
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
     sock.bind(("0.0.0.0", PORT))
