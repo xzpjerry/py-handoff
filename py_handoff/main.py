@@ -3,6 +3,7 @@ import json
 import socket
 import threading
 import uuid
+from time import sleep
 
 import netifaces as ni
 import pyperclip
@@ -40,11 +41,20 @@ def decode_msg(data):
     return data["msg"], data["from"]
 
 
+def waitForNewPaste():
+    originalText = pyperclip.paste()
+    while True:
+        currentText = pyperclip.paste()
+        if currentText != originalText:
+            return currentText
+        sleep(1)
+
+
 def server():
     """Broadcasting clipboard changes to LAN
     """
     while True:
-        msg = pyperclip.waitForNewPaste()
+        msg = waitForNewPaste()
         if msg in incoming_clip:
             # if the msg is from other nodes
             # do not broadcast again
