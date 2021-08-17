@@ -37,7 +37,7 @@ setup(
     author="xzpjerry",
     author_email="xzpjerry@gmail.com",
     keywords="py_handoff",
-    url="http://zhipengx.com/",
+    url="https://github.com/xzpjerry/py-handoff",
     include_package_data=True,
     packages=find_packages(include=["py_handoff", "py_handoff.*"]),
     install_requires=reqrs,
