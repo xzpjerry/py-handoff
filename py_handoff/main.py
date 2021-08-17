@@ -93,7 +93,7 @@ def client():
     while True:
         data = sock.recv(1024)
         msg, from_id = decode_msg(data)
-        if from_id != self_id:
+        if msg is not None and from_id != self_id:
             print(f"Received packet from {from_id}")
             incoming_clip[msg] = True
             try:
