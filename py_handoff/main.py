@@ -1,16 +1,19 @@
+import gzip
 import json
 import socket
 import threading
 import uuid
-import gzip
 
+import netifaces as ni
 import pyperclip
+from lru import LRU
 
 PORT = 5005
 KEY = "this is a secret key!"
 
 self_id = uuid.uuid4().hex
 previous_clipboard = ""
+incoming_clip = LRU(5)
 
 
 def obfuscate(byt):
@@ -42,12 +45,19 @@ def server():
     """
     while True:
         msg = pyperclip.waitForNewPaste()
-        interfaces = socket.getaddrinfo(
-            host=socket.gethostname(), port=None, family=socket.AF_INET
-        )
+        if msg in incoming_clip:
+            # if the msg is from other nodes
+            # do not broadcast again
+            continue
+        interfaces = ni.interfaces()
         msg = encode_msg(msg)
-        for ip in {ip[-1][0] for ip in interfaces}:
+        for interface in interfaces:
+            ifaddress = ni.ifaddresses(interface)
+            if not ifaddress:
+                continue
             try:
+                ip = ifaddress[2][0]["addr"]
+                print("Broadcasting on", ip)
                 sock = socket.socket(
                     socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP
                 )  # UDP
@@ -70,6 +80,8 @@ def client():
         data = sock.recv(1024)
         msg, from_id = decode_msg(data)
         if from_id != self_id:
+            print(f"Received packet from {from_id}")
+            incoming_clip[msg] = True
             try:
                 pyperclip.copy(msg)
             except Exception as e:
