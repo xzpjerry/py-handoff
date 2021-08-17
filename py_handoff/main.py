@@ -34,11 +34,15 @@ def encode_msg(msg):
 
 
 def decode_msg(data):
-    data = obfuscate(data)
-    data = gzip.decompress(data)
-    data = data.decode()
-    data = json.loads(data)
-    return data["msg"], data["from"]
+    try:
+        data = obfuscate(data)
+        data = gzip.decompress(data)
+        data = data.decode()
+        data = json.loads(data)
+        return data["msg"], data["from"]
+    except Exception as e:
+        print(e)
+        return None, None
 
 
 def waitForNewPaste():
