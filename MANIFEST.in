@@ -1,0 +1,11 @@
+include README.md
+include HISTORY.md
+include versioneer.py
+
+recursive-exclude * __pycache__
+recursive-exclude * *.py[co]
+exclude *.whl
+exclude *.epkl
+include py_handoff/*.pyx
+include py_handoff/_version.py
+include requirements.txt

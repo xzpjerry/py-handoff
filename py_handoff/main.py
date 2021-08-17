@@ -102,7 +102,7 @@ def client():
                 print(e)
 
 
-if __name__ == "__main__":
+def entrypoint():
     server_thread = threading.Thread(target=server)
     server_thread.start()
     client()
