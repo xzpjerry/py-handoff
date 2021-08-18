@@ -12,6 +12,7 @@ from lru import LRU
 
 PORT = int(os.environ.get("PY_HANDOFF_PORT", 5005))
 KEY = os.environ.get("PY_HANDOFF_KEY", "D0AA67DD-C285-45A2-B7A7-F5277F613E3C")
+MAX_DGRAM_RECV_BUFF_SIZE = int(os.environ.get("PY_HANDOFF_RECV_BUFF_SIZE", 1500))
 
 self_id = uuid.uuid4().hex
 incoming_clip = LRU(5)
@@ -71,11 +72,10 @@ def server():
         msg = encode_msg(msg)
         for interface in interfaces:
             ifaddress = ni.ifaddresses(interface)
-            if not ifaddress:
+            if not ifaddress or 2 not in ifaddress:
                 continue
             try:
                 ip = ifaddress[2][0]["addr"]
-                print("Broadcasting on", ip)
                 sock = socket.socket(
                     socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP
                 )  # UDP
@@ -85,7 +85,13 @@ def server():
                 sock.sendto(msg, ("255.255.255.255", PORT))
                 sock.close()
             except Exception as e:
-                print(e)
+                print(
+                    f"server occurred exception when broadcasting on {ip}: {type(e)} - {e};",
+                    end="\t",
+                )
+                print(f"Message size: {len(msg)} bytes")
+            else:
+                print("server broadcasted on", ip)
 
 
 def client():
@@ -94,10 +100,11 @@ def client():
     sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
     sock.bind(("0.0.0.0", PORT))
     while True:
-        data = sock.recv(1024)
+        data, addr = sock.recvfrom(MAX_DGRAM_RECV_BUFF_SIZE)
         msg, from_id = decode_msg(data)
         if msg is not None and from_id != self_id:
-            print(f"Received packet from {from_id}")
+            print(f"client received packet from {addr};", end="\t")
+            print(f"Message size: {len(msg)} bytes")
             incoming_clip[msg] = True
             try:
                 pyperclip.copy(msg)
