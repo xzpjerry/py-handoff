@@ -15,7 +15,7 @@ from lru import LRU
 from py_handoff.utils import ClientWithTimeout
 
 DISCOVERY_PORT = int(os.environ.get("PY_HANDOFF_DISCOVERY_PORT", 5005))
-DISCOVERY_KEY = os.environ.get("PY_HANDOFF_KEY", "D0AA67DD-C285-45A2-B7A7-F5277F613E3C")
+DISCOVERY_KEY = os.environ.get("PY_HANDOFF_KEY", "D0AA67DD-C285-45A2-B7A7-F5277F613E3C").encode()
 CLIPBOARD_LISTENER_PORT = int(
     os.environ.get("PY_HANDOFF_CLIPBOARD_LISTENER_PORT", 6000)
 )
@@ -41,7 +41,7 @@ clipboard_max_len = CLIPBOARD_SIZE_LIMIT_IN_MB * 1024 * 1024 // 4
 def obfuscate_with_discovery_key(byt):
     # Use same function in both directions.  Input and output are bytes
     # objects.
-    mask = DISCOVERY_KEY.encode()
+    mask = DISCOVERY_KEY
     lmask = len(mask)
     return bytes(c ^ mask[i % lmask] for i, c in enumerate(byt))
 
