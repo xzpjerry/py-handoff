@@ -1,4 +1,3 @@
-import gzip
 import json
 import os
 import select
@@ -17,23 +16,29 @@ from py_handoff.utils import ClientWithTimeout
 
 DISCOVERY_PORT = int(os.environ.get("PY_HANDOFF_DISCOVERY_PORT", 5005))
 DISCOVERY_KEY = os.environ.get("PY_HANDOFF_KEY", "D0AA67DD-C285-45A2-B7A7-F5277F613E3C")
-TCP_LISTENER_PORT = int(os.environ.get("PY_HANDOFF_TCP_LISTENER_PORT", 6000))
-TCP_LISTENER_AUTH_KEY = os.environ.get(
-    "PY_HANDOFF_TCP_LISTENER_AUTH_KEY", DISCOVERY_KEY.encode()
+CLIPBOARD_LISTENER_PORT = int(
+    os.environ.get("PY_HANDOFF_CLIPBOARD_LISTENER_PORT", 6000)
+)
+CLIPBOARD_SIZE_LIMIT_IN_MB = int(
+    os.environ.get("PY_HANDOFF_CLIPBOARD_SIZE_LIMIT_IN_MB", 128)
 )
 
+self_id = uuid.uuid4().hex
+tcp_listener_auth_key = uuid.uuid4().hex
 listener = Listener(
-    address=("0.0.0.0", TCP_LISTENER_PORT), authkey=TCP_LISTENER_AUTH_KEY
+    address=("0.0.0.0", CLIPBOARD_LISTENER_PORT), authkey=tcp_listener_auth_key.encode()
 )
 # Monkey Patch to support select
 Listener.fileno = lambda self: self._listener._socket.fileno()
 
-self_id = uuid.uuid4().hex
 incoming_clip = LRU(5)
 connected_nodes_and_retries_map = LRU(32)
 
+# Assume one character takes 4 bytes
+clipboard_max_len = CLIPBOARD_SIZE_LIMIT_IN_MB * 1024 * 1024 // 4
 
-def obfuscate(byt):
+
+def obfuscate_with_discovery_key(byt):
     # Use same function in both directions.  Input and output are bytes
     # objects.
     mask = DISCOVERY_KEY.encode()
@@ -41,7 +46,7 @@ def obfuscate(byt):
     return bytes(c ^ mask[i % lmask] for i, c in enumerate(byt))
 
 
-def encode_msg(msg):
+def encode_broadcast_msg(msg):
     msg = json.dumps(
         {
             "msg": msg,
@@ -49,15 +54,13 @@ def encode_msg(msg):
         }
     )
     msg = msg.encode()
-    msg = gzip.compress(msg, compresslevel=9)
-    msg = obfuscate(msg)
+    msg = obfuscate_with_discovery_key(msg)
     return msg
 
 
-def decode_msg(data):
+def decode_broadcast_msg(data):
     try:
-        data = obfuscate(data)
-        data = gzip.decompress(data)
+        data = obfuscate_with_discovery_key(data)
         data = data.decode()
         data = json.loads(data)
         return data["msg"], data["from"]
@@ -67,9 +70,9 @@ def decode_msg(data):
 
 
 def waitForNewPaste():
-    originalText = pyperclip.paste()
+    originalText = pyperclip.paste()[:clipboard_max_len]
     while True:
-        currentText = pyperclip.paste()
+        currentText = pyperclip.paste()[:clipboard_max_len]
         if currentText != originalText:
             return currentText
         sleep(1)
@@ -109,7 +112,7 @@ def auto_discovery():
     sock.bind(("0.0.0.0", DISCOVERY_PORT))
     while True:
         data, addr = sock.recvfrom(1500)
-        msg, from_id = decode_msg(data)
+        msg, from_id = decode_broadcast_msg(data)
         if msg is not None and from_id != self_id:
             msg = msg.split(",")
             if len(msg) == 2:
@@ -123,8 +126,8 @@ def auto_discovery():
 
 
 def broadcast_self():
-    self_id = f"{TCP_LISTENER_PORT},{TCP_LISTENER_AUTH_KEY.decode()}"
-    msg = encode_msg(self_id)
+    self_listener_cfg = f"{CLIPBOARD_LISTENER_PORT},{tcp_listener_auth_key}"
+    self_listener_cfg = encode_broadcast_msg(self_listener_cfg)
     while True:
         interfaces = ni.interfaces()
         for interface in interfaces:
@@ -138,13 +141,14 @@ def broadcast_self():
                 )  # UDP
                 sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
                 sock.bind((ip, 0))
-
-                sock.sendto(msg, ("255.255.255.255", DISCOVERY_PORT))
+                sock.sendto(self_listener_cfg, ("255.255.255.255", DISCOVERY_PORT))
                 sock.close()
             except Exception as e:
                 print(
                     f"Exception occurred when broadcasting self on {ip}: {type(e)} - {e};"
                 )
+            else:
+                print(f"Broadcasted self on {ip}")
         sleep(30)
 
 
@@ -158,9 +162,9 @@ def listen_for_incoming_clip():
                 try:
                     incoming_clip[clip_board] = True
                     pyperclip.copy(clip_board)
-                except Exception as e:
+                except Exception as exc:
                     print(
-                        f"Exception occurred when handling incoming clipboard: {type(e)} - {e};"
+                        f"Exception occurred when handling incoming clipboard: {type(exc)} - {exc};"
                     )
 
 
