@@ -4,6 +4,7 @@ import select
 import socket
 import threading
 import uuid
+import warnings
 from multiprocessing.connection import Listener
 from time import sleep
 
@@ -13,8 +14,26 @@ from lru import LRU
 
 from py_handoff.utils import ClientWithTimeout
 
+
+def format_Warning(message, category, filename, lineno, line=""):
+    return (
+        str(filename)
+        + ":"
+        + str(lineno)
+        + ": "
+        + category.__name__
+        + ": "
+        + str(message)
+        + "\n"
+    )
+
+
+warnings.formatwarning = format_Warning
+
 DISCOVERY_PORT = int(os.environ.get("PY_HANDOFF_DISCOVERY_PORT", 5005))
-DISCOVERY_KEY = os.environ.get("PY_HANDOFF_KEY", "D0AA67DD-C285-45A2-B7A7-F5277F613E3C").encode()
+DISCOVERY_KEY = os.environ.get(
+    "PY_HANDOFF_KEY", "D0AA67DD-C285-45A2-B7A7-F5277F613E3C"
+).encode()
 CLIPBOARD_LISTENER_PORT = int(
     os.environ.get("PY_HANDOFF_CLIPBOARD_LISTENER_PORT", 6000)
 )
@@ -64,7 +83,7 @@ def decode_broadcast_msg(data):
         data = json.loads(data)
         return data["msg"], data["from"]
     except Exception as e:
-        print(e)
+        warnings.warn(e)
         return None, None
 
 
@@ -87,7 +106,7 @@ def transmit_clipboard_changes():
             address,
             auth_key,
         ), failure_times in connected_nodes_and_retries_map.items():
-            print(
+            warnings.warn(
                 f"Transmiting clipboard to {(address, auth_key)}, which had failed {failure_times} times"
             )
             try:
@@ -96,7 +115,9 @@ def transmit_clipboard_changes():
                 ) as conn:
                     conn.send(msg)
             except Exception as e:
-                print(f"Transmission to node {(address, auth_key)} failed: {e}")
+                warnings.warn(
+                    f"Transmission to node {(address, auth_key)} failed: {e}"
+                )
                 if failure_times >= 3:
                     failed_nodes.append((address, auth_key))
                 else:
@@ -119,7 +140,7 @@ def auto_discovery():
                 port, auth_key = msg
                 try:
                     key = ((addr[0], int(port)), auth_key.encode())
-                    print(f"Registering node {key}")
+                    warnings.warn(f"Registering node {key}")
                     connected_nodes_and_retries_map[key] = 0
                 except:
                     pass
@@ -144,11 +165,11 @@ def broadcast_self():
                 sock.sendto(self_listener_cfg, ("255.255.255.255", DISCOVERY_PORT))
                 sock.close()
             except Exception as e:
-                print(
+                warnings.warn(
                     f"Exception occurred when broadcasting self on {ip}: {type(e)} - {e};"
                 )
             else:
-                print(f"Broadcasted self on {ip}")
+                warnings.warn(f"Broadcasted self on {ip}")
         sleep(30)
 
 
@@ -156,16 +177,16 @@ def listen_for_incoming_clip():
     while True:
         r, _, _ = select.select((listener,), (), ())
         if listener in r:
-            with listener.accept() as conn:
-                print("Incoming clipboard")
-                clip_board = conn.recv()
-                try:
+            try:
+                with listener.accept() as conn:
+                    warnings.warn("Incoming clipboard")
+                    clip_board = conn.recv()
                     incoming_clip[clip_board] = True
                     pyperclip.copy(clip_board)
-                except Exception as e:
-                    print(
-                        f"Exception occurred when handling incoming clipboard: {type(exc)} - {exc};"
-                    )
+            except Exception as e:
+                warnings.warn(
+                    f"Exception occurred when handling incoming clipboard: {type(e)} - {e};"
+                )
 
 
 def entrypoint():
