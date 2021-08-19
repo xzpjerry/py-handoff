@@ -5,7 +5,6 @@ import socket
 import threading
 import uuid
 from multiprocessing.connection import Listener
-from socket import error as SocketError
 from time import sleep
 
 import netifaces as ni
@@ -96,7 +95,8 @@ def transmit_clipboard_changes():
                     address, authkey=auth_key, timeout=3, use_tcp=True
                 ) as conn:
                     conn.send(msg)
-            except SocketError as e:
+            except Exception as e:
+                print(f"Transmission to node {(address, auth_key)} failed: {e}")
                 if failure_times >= 3:
                     failed_nodes.append((address, auth_key))
                 else:
@@ -154,7 +154,7 @@ def broadcast_self():
 
 def listen_for_incoming_clip():
     while True:
-        r, w, e = select.select((listener,), (), ())
+        r, _, _ = select.select((listener,), (), ())
         if listener in r:
             with listener.accept() as conn:
                 print("Incoming clipboard")
@@ -162,7 +162,7 @@ def listen_for_incoming_clip():
                 try:
                     incoming_clip[clip_board] = True
                     pyperclip.copy(clip_board)
-                except Exception as exc:
+                except Exception as e:
                     print(
                         f"Exception occurred when handling incoming clipboard: {type(exc)} - {exc};"
                     )
