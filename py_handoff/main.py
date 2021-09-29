@@ -1,11 +1,11 @@
 import json
 import os
-import select
 import socket
 import threading
 import uuid
 import warnings
-from multiprocessing.connection import Listener
+from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
+from multiprocessing.connection import Connection, Listener
 from time import sleep
 
 import netifaces as ni
@@ -30,6 +30,8 @@ def format_Warning(message, category, filename, lineno, line=""):
 
 warnings.formatwarning = format_Warning
 
+MAX_CONCURRENCY = 5
+ON_GOING_FUTURES = set()
 DISCOVERY_PORT = int(os.environ.get("PY_HANDOFF_DISCOVERY_PORT", 5005))
 DISCOVERY_KEY = os.environ.get(
     "PY_HANDOFF_DISCOVERY_KEY", "D0AA67DD-C285-45A2-B7A7-F5277F613E3C"
@@ -46,8 +48,6 @@ tcp_listener_auth_key = uuid.uuid4().hex
 listener = Listener(
     address=("0.0.0.0", CLIPBOARD_LISTENER_PORT), authkey=tcp_listener_auth_key.encode()
 )
-# Monkey Patch to support select
-Listener.fileno = lambda self: self._listener._socket.fileno()
 
 incoming_clip = LRU(5)
 connected_nodes_and_retries_map = LRU(32)
@@ -115,9 +115,7 @@ def transmit_clipboard_changes():
                 ) as conn:
                     conn.send(msg)
             except Exception as e:
-                warnings.warn(
-                    f"Transmission to node {(address, auth_key)} failed: {e}"
-                )
+                warnings.warn(f"Transmission to node {(address, auth_key)} failed: {e}")
                 if failure_times >= 3:
                     failed_nodes.append((address, auth_key))
                 else:
@@ -173,20 +171,31 @@ def broadcast_self():
         sleep(30)
 
 
+def handle_incoming_clip(conn: Connection):
+    try:
+        while True:
+            warnings.warn("Incoming clipboard")
+            clip_board = conn.recv()
+            incoming_clip[clip_board] = True
+            pyperclip.copy(clip_board)
+    except EOFError:
+        ...
+    except Exception as e:
+        warnings.warn(
+            f"Exception occurred when handling incoming clipboard: {type(e)} - {e};"
+        )
+
+
 def listen_for_incoming_clip():
-    while True:
-        r, _, _ = select.select((listener,), (), ())
-        if listener in r:
-            try:
-                with listener.accept() as conn:
-                    warnings.warn("Incoming clipboard")
-                    clip_board = conn.recv()
-                    incoming_clip[clip_board] = True
-                    pyperclip.copy(clip_board)
-            except Exception as e:
-                warnings.warn(
-                    f"Exception occurred when handling incoming clipboard: {type(e)} - {e};"
-                )
+    with ThreadPoolExecutor() as executor:
+        with listener:
+            while True:
+                if len(ON_GOING_FUTURES) >= MAX_CONCURRENCY:
+                    completed, ON_GOING_FUTURES = wait(
+                        ON_GOING_FUTURES, return_when=FIRST_COMPLETED
+                    )
+                conn: Connection = listener.accept()
+                executor.submit(handle_incoming_clip, conn)
 
 
 def entrypoint():
