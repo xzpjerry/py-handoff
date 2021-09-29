@@ -180,6 +180,7 @@ def handle_incoming_clip(conn: Connection):
 
 
 def listen_for_incoming_clip():
+    global ON_GOING_FUTURES
     with ThreadPoolExecutor() as executor:
         with listener:
             while True:
