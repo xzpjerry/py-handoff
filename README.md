@@ -1,3 +1,4 @@
+![](https://img.shields.io/pypi/v/py-handoff?style=for-the-badge)
 # py-handoff: Like Handoff, but in Python
 py-handoff is an application used to share clipboard contents across your devices connected to the same LAN.
 
