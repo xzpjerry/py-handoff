@@ -131,7 +131,7 @@ def auto_discovery():
                 port, auth_key = msg
                 try:
                     key = ((addr[0], int(port)), auth_key.encode())
-                    logger.info(f"Registering node {key}")
+                    logger.debug(f"Registering node {key}")
                     connected_nodes_and_retries_map[key] = 0
                 except:
                     pass
@@ -156,18 +156,18 @@ def broadcast_self():
                 sock.sendto(self_listener_cfg, ("255.255.255.255", DISCOVERY_PORT))
                 sock.close()
             except Exception as e:
-                logger.warning(
+                logger.debug(
                     f"Exception occurred when broadcasting self on {ip}: {type(e)} - {e};"
                 )
             else:
-                logger.info(f"Broadcasted self on {ip}")
+                logger.debug(f"Broadcasted self on {ip}")
         sleep(30)
 
 
 def handle_incoming_clip(conn: Connection):
     try:
         while True:
-            logger.warning("Incoming clipboard")
+            logger.info("Incoming clipboard")
             clip_board = conn.recv()
             incoming_clip[clip_board] = True
             pyperclip.copy(clip_board)
